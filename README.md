@@ -1,11 +1,1 @@
-SQLi Boolean Based Blind:
-
-
-Teste automatizado  baseado em valores booleanos.
-
--False
-
--True
-
-
-  
+Capturando dados via injeção de sql
