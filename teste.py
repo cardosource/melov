@@ -15,9 +15,6 @@ def inject_simple(url,query):
         html = r.text
         if reference in html:
             db.append(chr(j))
-
-
-
     return db   
 
 
