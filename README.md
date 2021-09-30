@@ -5,8 +5,9 @@ A SQL injection attack consists of insertion or “injection” of a SQL query v
  
 FONT:       
 [pt.wikipedia.org](https://pt.wikipedia.org/wiki/Inje%C3%A7%C3%A3o_de_SQL)   
-[pt.stackoverflow - sqli](https://pt.stackoverflow.com/questions/100729/como-acontece-um-sql-injection)   
-[pt.stackoverflow - sqli ](https://pt.stackoverflow.com/questions/488170/como-previnir-sql-injection-where-clause)
+[pt.stackoverflow - sqli](https://pt.stackoverflow.com/questions/100729/como-acontece-um-sql-injection)      
+[owasp.org](https://owasp.org/www-community/attacks/SQL_Injection)
+
 
 
     
